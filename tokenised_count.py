@@ -1,44 +1,35 @@
-import gspread 
-from gspread_dataframe import set_with_dataframe, get_as_dataframe
-from oauth2client.service_account import ServiceAccountCredentials
-#import nltk
-#nltk.download()
-from nltk.tokenize import word_tokenize
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+@author: PSChua
+"""
+#import essential library
 import pandas as pd
 
-scope = ['https://spreadsheets.google.com/feeds']
-creds = ServiceAccountCredentials.from_json_keyfile_name('client_secret.json', scope)
-client = gspread.authorize(creds)
+#authorize client secret & open spreadsheet
+import pygsheets
+gc = pygsheets.authorize(service_file="client_secret.json")
+sheet = gc.open_by_key("1FHBo_yCtn-suJTXk2okpiPA0y7e7-7ycJsF4-361_EE")
 
-sheet = client.open_by_key("1FHBo_yCtn-suJTXk2okpiPA0y7e7-7ycJsF4-361_EE")
+#obtain last 7 days' data into a dataframe
+last_7_days = sheet.worksheet_by_title("LAST_7_DAYS")
+last_7_df = last_7_days.get_as_df(has_header=False, numerize = True)
+last_7_header = last_7_df.iloc[1]
+last_7_df = last_7_df[2:]
+last_7_df.columns = last_7_header
 
-#testing faster dataframe
-last_7_df_test = get_as_dataframe(worksheet = last_7_days, skiprows=1, header=True)
-
-#obtain data from the spreadsheet
-last_7_days = sheet.worksheet("LAST_7_DAYS")
-last_30_days = sheet.worksheet("LAST_30_DAYS")
-py_token = sheet.worksheet("Py_Token")
-last_7 = last_7_days.get_all_values()
-last_30 = last_30_days.get_all_values()
-
-#convert the data into a dataframe
-last_7_values_header = last_7[1][:]
-last_7_values = last_7[2:len(last_7)-1][:]
-last_7_df = pd.DataFrame(last_7_values,columns = last_7_values_header)
-metrics_header = ["Impressions","Clicks","Cost","Conversions"]
-last_7_df[metrics_header] = last_7_df[metrics_header].astype(float)
-
-#convert the data into a dataframe
-last_30_values_header = last_30[1][:]
-last_30_values = last_30[2:len(last_7)-1][:]
-last_30_df = pd.DataFrame(last_30_values,columns = last_30_values_header)
-last_30_df[metrics_header] = last_30_df[metrics_header].astype(float)
+#obtain last 30 days' data into a dataframe
+last_30_days = sheet.worksheet_by_title("LAST_30_DAYS")
+last_30_df = last_30_days.get_as_df(has_header=False, numerize = True)
+last_30_header = last_30_df.iloc[1]
+last_30_df = last_30_df[2:]
+last_30_df.columns = last_30_header
 
 #replace potential wildcards that disrupt regex
 last_7_df['Search term'] = last_7_df['Search term'].str.replace("\*","")
 
 #generate a list of lists of tokens
+from nltk.tokenize import word_tokenize
 last_7_words = last_7_df["Search term"]
 tokens_list = [word_tokenize(i) for i in last_7_words]
 
@@ -62,4 +53,5 @@ consolidated = pd.DataFrame(data = filtered_data, columns = term_metrics_header)
 consolidated.insert(0,"Terms",tokens)
 
 #write to spreadsheet
-set_with_dataframe(worksheet = py_token, dataframe = consolidated)
+py_token = sheet.worksheet_by_title("temp")
+py_token.set_dataframe(consolidated, (1,1))
